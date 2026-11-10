@@ -29,7 +29,7 @@ export class FetchError extends Error {}
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; IsTheSiteWordPress/1.0; +https://isthesitewordpress.com)";
+  "Mozilla/5.0 (compatible; RunsWP/1.0; +https://runswp.com)";
 const PAGE_TIMEOUT_MS = 8000;
 const PROBE_TIMEOUT_MS = 5000;
 const PAGE_BYTES = 1_500_000;

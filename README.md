@@ -1,4 +1,4 @@
-# Is the site WordPress?
+# RunsWP
 
 Type a web address and get a yes or no, with the evidence behind it.
 
@@ -8,4 +8,4 @@ Type a web address and get a yes or no, with the evidence behind it.
 
 Publish with `sf publish site --json`.
 
-Live: https://kerned-signal.space.fast/ (Spacefast space `spc_0ffd59be34fc45d681ff5ce251b922b3`, Lance's Team). `site/sf.jsonc` declares the Functions runtime; MCP inline publishes don't auto-detect `functions/` without it.
+Live: https://runswp.com/ (also https://kerned-signal.space.fast/) (Spacefast space `spc_0ffd59be34fc45d681ff5ce251b922b3`, Lance's Team). `site/sf.jsonc` declares the Functions runtime; MCP inline publishes don't auto-detect `functions/` without it.
