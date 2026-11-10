@@ -91,6 +91,12 @@ function el(tag, attrs, text) {
   return node;
 }
 
+function handBuilt(data) {
+  const name = data.uiLibrary || (data.framework && data.framework !== "Vite" ? data.framework : "");
+  if (name) return " Hand-built " + name + " app.";
+  return data.framework ? " Hand-built app." : "";
+}
+
 function render(data) {
   out.replaceChildren();
   const card = el("div", { class: "card" });
@@ -103,14 +109,16 @@ function render(data) {
   card.append(el("p", { class: "answer " + data.verdict }, words[data.verdict]));
   let line;
   if (data.verdict === "yes") line = data.host + " runs WordPress" + (data.platform && data.platform !== "WordPress" ? " (" + data.platform + ")." : ".");
-  else if (data.verdict === "no") line = data.otherCms ? data.host + " runs " + data.otherCms + "." : "No CMS detected.";
+  else if (data.verdict === "no") line = data.otherCms ? data.host + " runs " + data.otherCms + "." : "No CMS detected." + handBuilt(data);
   else line = data.reason || "One weak sign of WordPress on " + data.host + ", not enough to say yes.";
   card.append(el("p", { class: "summary" }, line));
 
+  const appName = data.uiLibrary || (data.framework !== "Vite" ? data.framework : "");
   const notes = [];
   if (data.theme) notes.push("Theme: " + data.theme);
   if (data.clue) notes.push("How we know: " + data.clue);
-  if (data.framework) notes.push("Built with " + data.framework + ".");
+  if (data.framework && data.framework !== appName) notes.push("Built with " + data.framework + ".");
+  if (data.hosting) notes.push("Served by " + data.hosting + ".");
   for (const note of notes) card.append(el("p", { class: "note" }, note));
 
   if (data.evidence && data.evidence.length) {

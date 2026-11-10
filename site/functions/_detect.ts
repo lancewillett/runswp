@@ -18,6 +18,8 @@ export interface CheckResult {
   otherCms?: string;
   clue?: string;
   framework?: string;
+  uiLibrary?: string;
+  hosting?: string;
   theme?: string;
   reason?: string;
   evidence: Evidence[];
@@ -34,6 +36,8 @@ const PAGE_TIMEOUT_MS = 8000;
 const PROBE_TIMEOUT_MS = 5000;
 const PAGE_BYTES = 1_500_000;
 const PROBE_BYTES = 300_000;
+const SCRIPT_BYTES = 3_000_000;
+const SHELL_BYTES = 60_000;
 const MAX_REDIRECTS = 5;
 
 export function normalizeUrl(raw: string): URL {
@@ -239,7 +243,66 @@ const FRAMEWORK_FINGERPRINTS: Fingerprint[] = [
   { name: "Astro", test: (_h, html) => when(html.includes("/_astro/"), "Astro") },
   { name: "SvelteKit", test: (_h, html) => when(html.includes("/_app/immutable/"), "SvelteKit") },
   { name: "Remix", test: (_h, html) => when(html.includes("__remixContext"), "Remix") },
+  { name: "Vite", test: (_h, html) => when(viteEntry(html) !== undefined, "Vite") },
 ];
+
+const HOSTING_FINGERPRINTS: Fingerprint[] = [
+  { name: "Vercel", test: (h) => when(h.has("x-vercel-id") || /vercel/i.test(h.get("server") ?? ""), "Vercel") },
+  { name: "Netlify", test: (h) => when(h.has("x-nf-request-id") || /netlify/i.test(h.get("server") ?? ""), "Netlify") },
+  { name: "GitHub Pages", test: (h) => when(/^github\.com$/i.test(h.get("server") ?? ""), "GitHub Pages") },
+  { name: "Fly.io", test: (h) => when(h.has("fly-request-id"), "Fly.io") },
+  { name: "Render", test: (h) => when(h.has("rndr-id"), "Render") },
+  { name: "Cloudflare", test: (h) => when(h.has("cf-ray") || /^cloudflare$/i.test(h.get("server") ?? ""), "Cloudflare") },
+  { name: "Amazon CloudFront", test: (h) => when(h.has("x-amz-cf-id"), "Amazon CloudFront") },
+  { name: "Fastly", test: (h) => when(h.has("x-fastly-request-id"), "Fastly") },
+];
+
+const UI_LIBRARIES: Array<{ name: string; pattern: RegExp }> = [
+  { name: "React", pattern: /react-dom|__reactContainer|react\.production|react\.dev\/errors/ },
+  { name: "Vue", pattern: /__VUE__|__vue_app__|vuejs\.org/ },
+  { name: "Svelte", pattern: /svelte\.dev|SvelteComponent|svelte\/internal/ },
+  { name: "Solid", pattern: /solid-js|solidjs\.com/ },
+  { name: "Angular", pattern: /@angular\/core|angular\.dev|angular\.io/ },
+];
+
+function viteEntry(html: string): string | undefined {
+  for (const tag of html.match(/<script\b[^>]*>/gi) ?? []) {
+    if (!/\btype=["']module["']/i.test(tag)) continue;
+    const src = tag.match(/\bsrc=["']([^"']*\/assets\/index-[A-Za-z0-9_-]{6,}\.js)["']/i)?.[1];
+    if (src) return src;
+  }
+  return undefined;
+}
+
+export function uiLibraryIn(code: string): string | undefined {
+  if (/\bpreact\b/.test(code) && !code.includes("react-dom")) return "Preact";
+  return UI_LIBRARIES.find((lib) => lib.pattern.test(code))?.name;
+}
+
+async function sniffUiLibrary(html: string, pageUrl: URL, fetchImpl: FetchLike): Promise<string | undefined> {
+  const src = viteEntry(html) ?? html.match(/<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"']+)["']/i)?.[1];
+  if (!src) return undefined;
+  let scriptUrl: URL;
+  try {
+    scriptUrl = new URL(src, pageUrl);
+  } catch {
+    return undefined;
+  }
+  if (scriptUrl.origin !== pageUrl.origin) return undefined;
+  try {
+    const res = await fetchImpl(scriptUrl.href, {
+      headers: { "user-agent": USER_AGENT, accept: "*/*" },
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
+      return undefined;
+    }
+    return uiLibraryIn(await readCapped(res, SCRIPT_BYTES));
+  } catch {
+    return undefined;
+  }
+}
 
 function firstMatch(list: Fingerprint[], h: Headers, html: string, headerText: string, host: string) {
   for (const fp of list) {
@@ -311,9 +374,10 @@ export function analyze(headers: Headers, html: string, host = "") {
     clue = cms?.clue;
   }
   const framework = firstMatch(FRAMEWORK_FINGERPRINTS, headers, html, headerText, host)?.name;
+  const hosting = firstMatch(HOSTING_FINGERPRINTS, headers, html, headerText, host)?.name;
   const theme = html.match(/\/wp-content\/themes\/(?:pub\/|premium\/)?([a-z0-9_-]+)\//i)?.[1];
 
-  return { evidence, platform, otherCms, clue, framework, theme };
+  return { evidence, platform, otherCms, clue, framework, hosting, theme };
 }
 
 export function decide(evidence: Evidence[]): Verdict {
@@ -327,7 +391,7 @@ export function decide(evidence: Evidence[]): Verdict {
 export async function check(raw: string, fetchImpl: FetchLike = fetch): Promise<CheckResult> {
   const start = normalizeUrl(raw);
   const { res, finalUrl, body } = await fetchPage(start, fetchImpl);
-  const { evidence, platform, otherCms, clue, framework, theme } = analyze(res.headers, body, finalUrl.hostname);
+  const { evidence, platform, otherCms, clue, framework, hosting, theme } = analyze(res.headers, body, finalUrl.hostname);
 
   if (!evidence.some((e) => e.strength === "strong") && (await probeRestApi(finalUrl.origin, fetchImpl))) {
     evidence.push({
@@ -347,6 +411,9 @@ export async function check(raw: string, fetchImpl: FetchLike = fetch): Promise<
       : `The site answered with HTTP ${res.status}, so there wasn't a page to inspect.`;
   }
 
+  const uiLibrary =
+    verdict === "no" && !otherCms && body.length < SHELL_BYTES ? await sniffUiLibrary(body, finalUrl, fetchImpl) : undefined;
+
   return {
     host: start.hostname,
     url: start.href,
@@ -357,6 +424,8 @@ export async function check(raw: string, fetchImpl: FetchLike = fetch): Promise<
     otherCms: verdict === "yes" ? undefined : otherCms,
     clue: verdict === "yes" ? undefined : clue,
     framework: verdict === "yes" ? undefined : framework,
+    uiLibrary,
+    hosting,
     theme: verdict === "yes" ? theme : undefined,
     reason,
     evidence,

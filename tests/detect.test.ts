@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { analyze, decide, InputError, normalizeUrl } from "../site/functions/_detect.ts";
+import { analyze, decide, InputError, normalizeUrl, uiLibraryIn } from "../site/functions/_detect.ts";
 import { GET as checkRoute } from "../site/functions/api/check.ts";
 import { GET as pageRoute } from "../site/functions/index.ts";
 
@@ -51,6 +51,21 @@ test("analyze names non-WordPress platforms and frameworks", () => {
   assert.equal(contentfulNext.framework, "Next.js");
 });
 
+test("analyze spots a Vite app shell and the host; uiLibraryIn names the library", () => {
+  const shell = analyze(
+    new Headers({ server: "cloudflare", "cf-ray": "abc-LAX" }),
+    '<script type="module" crossorigin src="/assets/index-eMIulc_q.js"></script>',
+  );
+  assert.equal(shell.otherCms, undefined);
+  assert.equal(shell.framework, "Vite");
+  assert.equal(shell.hosting, "Cloudflare");
+  assert.equal(analyze(new Headers({ "x-vercel-id": "sfo1::x" }), "").hosting, "Vercel");
+  assert.equal(uiLibraryIn('import{createRoot}from"react-dom/client"'), "React");
+  assert.equal(uiLibraryIn("window.__VUE__=1"), "Vue");
+  assert.equal(uiLibraryIn('from"preact/hooks"'), "Preact");
+  assert.equal(uiLibraryIn("plain code"), undefined);
+});
+
 test("page route serves HTML", async () => {
   const res = pageRoute();
   assert.match(res.headers.get("content-type") ?? "", /text\/html/);
@@ -87,6 +102,17 @@ live("staff.tumblr.com is Tumblr, not unsure", async () => {
   const data = await res.json();
   assert.equal(data.verdict, "no");
   assert.equal(data.otherCms, "Tumblr");
+});
+
+live("brocklefferts.com is a hand-built React app on Cloudflare", async () => {
+  const res = await checkRoute(new Request("https://x.test/api/check?url=brocklefferts.com"));
+  const data = await res.json();
+  console.log(JSON.stringify({ verdict: data.verdict, otherCms: data.otherCms, framework: data.framework, uiLibrary: data.uiLibrary, hosting: data.hosting }));
+  assert.equal(data.verdict, "no");
+  assert.equal(data.otherCms, undefined);
+  assert.equal(data.uiLibrary, "React");
+  assert.equal(data.framework, "Vite");
+  assert.equal(data.hosting, "Cloudflare");
 });
 
 live("lance.blog is WordPress", async () => {
