@@ -1,0 +1,9 @@
+{
+  "name": "isthesitewordpress",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/detect.test.ts",
+    "test:live": "LIVE=1 node --test tests/detect.test.ts"
+  }
+}
