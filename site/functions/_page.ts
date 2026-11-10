@@ -91,9 +91,15 @@ function el(tag, attrs, text) {
   return node;
 }
 
+const STATIC_SITE_GENERATORS = ["Jekyll", "Hugo", "Eleventy", "Hexo", "Docusaurus", "VitePress", "Zola", "MkDocs", "Pelican"];
+
+function appName(data) {
+  return (data.framework && data.framework !== "Vite" ? data.framework : "") || data.uiLibrary || "";
+}
+
 function handBuilt(data) {
-  const name = data.uiLibrary || (data.framework && data.framework !== "Vite" ? data.framework : "");
-  if (name) return " Hand-built " + name + " app.";
+  const name = appName(data);
+  if (name) return " Hand-built " + name + (STATIC_SITE_GENERATORS.includes(name) ? " site." : " app.");
   return data.framework ? " Hand-built app." : "";
 }
 
@@ -113,11 +119,10 @@ function render(data) {
   else line = data.reason || "One weak sign of WordPress on " + data.host + ", not enough to say yes.";
   card.append(el("p", { class: "summary" }, line));
 
-  const appName = data.uiLibrary || (data.framework !== "Vite" ? data.framework : "");
   const notes = [];
   if (data.theme) notes.push("Theme: " + data.theme);
   if (data.clue) notes.push("How we know: " + data.clue);
-  if (data.framework && data.framework !== appName) notes.push("Built with " + data.framework + ".");
+  if (data.framework && data.framework !== appName(data)) notes.push("Built with " + data.framework + ".");
   if (data.hosting) notes.push("Served by " + data.hosting + ".");
   for (const note of notes) card.append(el("p", { class: "note" }, note));
 
