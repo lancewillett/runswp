@@ -7,3 +7,5 @@ Type a web address and get a yes or no, with the evidence behind it.
 - `npm test` runs offline tests. `npm run test:live` also checks royal.uk (Drupal) and lance.blog (WordPress.com).
 
 Publish with `sf publish site --json`.
+
+Live: https://kerned-signal.space.fast/ (Spacefast space `spc_0ffd59be34fc45d681ff5ce251b922b3`, Lance's Team). `site/sf.jsonc` declares the Functions runtime; MCP inline publishes don't auto-detect `functions/` without it.
