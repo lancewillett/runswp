@@ -3,10 +3,13 @@ export const PAGE = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Is the site WordPress?</title>
-<meta name="description" content="Type a web address and find out whether the site runs WordPress, with the evidence behind the answer.">
-<meta property="og:title" content="Is the site WordPress?">
-<meta property="og:description" content="Type a web address and find out whether the site runs WordPress.">
+<title>Does this site run WordPress? · RunsWP</title>
+<meta name="description" content="Type a web address and find out whether the site runs WordPress, or which CMS it uses instead, with the evidence behind the answer.">
+<link rel="canonical" href="https://runswp.com/">
+<meta property="og:site_name" content="RunsWP">
+<meta property="og:url" content="https://runswp.com/">
+<meta property="og:title" content="Does this site run WordPress?">
+<meta property="og:description" content="Type a web address and find out whether the site runs WordPress, or which CMS it uses instead.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%233858e9'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='18' font-weight='700' text-anchor='middle' fill='white'%3E%3F%3C/text%3E%3C/svg%3E">
 <style>
@@ -31,7 +34,9 @@ main { width: 100%; max-width: 640px; margin: 0 auto; padding: 12vh 16px 48px; f
 h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.1; margin: 0 0 8px; letter-spacing: -0.01em; }
 .lede { color: var(--muted); margin: 0 0 28px; }
 form { display: flex; gap: 8px; }
-label.visually-hidden, .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.field-label { display: block; font-weight: 600; margin-bottom: 8px; }
+.skip { position: absolute; left: -9999px; top: 8px; background: var(--surface); color: var(--text); padding: 8px 12px; border-radius: 8px; }
+.skip:focus { left: 16px; }
 input[type=text] {
   flex: 1; min-width: 0; font: inherit; padding: 14px 16px; border-radius: var(--radius);
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
@@ -49,6 +54,7 @@ button[disabled] { opacity: 0.6; cursor: progress; }
 .answer.yes { color: var(--yes); } .answer.no { color: var(--no); } .answer.unsure { color: var(--unsure); }
 .summary { margin: 0; font-size: 1.1rem; overflow-wrap: anywhere; }
 .error { color: var(--no); margin: 0; }
+.note { margin: 8px 0 0; color: var(--muted); overflow-wrap: anywhere; }
 details { margin-top: 18px; }
 summary { cursor: pointer; color: var(--muted); }
 ul.evidence { margin: 12px 0 0; padding-left: 20px; }
@@ -60,11 +66,12 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 2
 </style>
 </head>
 <body>
-<main>
-  <h1>Is the site WordPress?</h1>
-  <p class="lede">Type a web address. You'll get a yes or no, plus the evidence behind it.</p>
+<a class="skip" href="#url">Skip to the address field</a>
+<main id="main">
+  <h1>Runs WP?</h1>
+  <p class="lede">Type a web address to find out whether the site runs WordPress. If it doesn't, you'll see which CMS it uses instead.</p>
+  <label class="field-label" for="url">Site address</label>
   <form id="check" novalidate>
-    <label class="visually-hidden" for="url">Site address</label>
     <input id="url" name="url" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="example.com" required>
     <button type="submit">Check</button>
   </form>
@@ -96,9 +103,15 @@ function render(data) {
   card.append(el("p", { class: "answer " + data.verdict }, words[data.verdict]));
   let line;
   if (data.verdict === "yes") line = data.host + " runs WordPress" + (data.platform && data.platform !== "WordPress" ? " (" + data.platform + ")." : ".");
-  else if (data.verdict === "no") line = data.otherCms ? data.host + " runs " + data.otherCms + "." : "No sign of WordPress on " + data.host + ".";
+  else if (data.verdict === "no") line = data.otherCms ? data.host + " runs " + data.otherCms + "." : "No CMS detected.";
   else line = data.reason || "One weak sign of WordPress on " + data.host + ", not enough to say yes.";
   card.append(el("p", { class: "summary" }, line));
+
+  const notes = [];
+  if (data.theme) notes.push("Theme: " + data.theme);
+  if (data.clue) notes.push("How we know: " + data.clue);
+  if (data.framework) notes.push("Built with " + data.framework + ".");
+  for (const note of notes) card.append(el("p", { class: "note" }, note));
 
   if (data.evidence && data.evidence.length) {
     const details = el("details");

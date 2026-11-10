@@ -1,0 +1,6 @@
+{
+  "$schema": "https://spacefast.com/schemas/sf.json",
+  "runtime": {
+    "kind": "functions"
+  }
+}

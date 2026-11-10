@@ -16,6 +16,9 @@ export interface CheckResult {
   verdict: Verdict;
   platform?: string;
   otherCms?: string;
+  clue?: string;
+  framework?: string;
+  theme?: string;
   reason?: string;
   evidence: Evidence[];
 }
@@ -26,7 +29,7 @@ export class FetchError extends Error {}
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; IsTheSiteWordPress/1.0; +https://isthesitewordpress.com)";
+  "Mozilla/5.0 (compatible; RunsWP/1.0; +https://runswp.com)";
 const PAGE_TIMEOUT_MS = 8000;
 const PROBE_TIMEOUT_MS = 5000;
 const PAGE_BYTES = 1_500_000;
@@ -161,21 +164,92 @@ function metaGenerators(html: string): string[] {
   return found;
 }
 
-const OTHER_PLATFORMS: Array<{ name: string; test: (h: Headers, html: string) => boolean }> = [
-  { name: "Drupal", test: (h) => h.has("x-drupal-cache") || h.has("x-drupal-dynamic-cache") },
-  { name: "Shopify", test: (h, html) => h.has("x-shopify-stage") || html.includes("cdn.shopify.com") },
-  { name: "Wix", test: (h, html) => h.has("x-wix-request-id") || html.includes("static.wixstatic.com") },
+type Fingerprint = { name: string; test: (h: Headers, html: string, headerText: string, host: string) => string | null };
+
+const onHost = (host: string, suffix: string) => host === suffix || host.endsWith(`.${suffix}`);
+
+const when = (cond: boolean, clue: string) => (cond ? clue : null);
+const assetHost = (name: string, host: string): Fingerprint => ({
+  name,
+  test: (_h, html) => when(html.includes(host), `The page loads assets from ${host}.`),
+});
+
+const CMS_FINGERPRINTS: Fingerprint[] = [
+  {
+    name: "Adobe Experience Manager",
+    test: (_h, html, headerText) =>
+      when(headerText.includes("adobeaemcloud.com"), "A response header names an Adobe AEM Cloud host.") ??
+      when(html.includes("/etc.clientlibs/"), "The page loads assets from /etc.clientlibs/, an AEM path."),
+  },
+  {
+    name: "Drupal",
+    test: (h, html) =>
+      when(h.has("x-drupal-cache") || h.has("x-drupal-dynamic-cache"), "The response has Drupal cache headers.") ??
+      when(html.includes("drupal-settings-json") || html.includes("/sites/default/files/"), "The page has Drupal settings or file paths."),
+  },
+  { name: "Sitecore", test: (_h, html) => when(/sitecore/i.test(html) && html.includes("/-/media/"), "The page uses Sitecore media paths (/-/media/).") },
+  { name: "Blogger", test: (_h, _html, _t, host) => when(onHost(host, "blogspot.com"), "The site is on blogspot.com.") },
+  {
+    name: "Tumblr",
+    test: (h, _html, _t, host) => when(h.has("x-tumblr-user") || onHost(host, "tumblr.com"), "The site is on Tumblr."),
+  },
+  { name: "LiveJournal", test: (_h, _html, _t, host) => when(onHost(host, "livejournal.com"), "The site is on livejournal.com.") },
+  { name: "Typepad", test: (_h, _html, _t, host) => when(onHost(host, "typepad.com"), "The site is on typepad.com.") },
+  {
+    name: "Ghost",
+    test: (h, _html, _t, host) =>
+      when(h.has("x-ghost-cache-status"), "The response has Ghost cache headers.") ??
+      when(onHost(host, "ghost.io"), "The site is on ghost.io."),
+  },
+  {
+    name: "ExpressionEngine",
+    test: (_h, _html, headerText) => when(/set-cookie: [^\n]*\bexp_[a-z_]+=/.test(headerText), "The site sets ExpressionEngine exp_ cookies."),
+  },
+  { name: "Shopify", test: (h, html) => when(h.has("x-shopify-stage") || html.includes("cdn.shopify.com"), "The page loads from Shopify's CDN.") },
+  {
+    name: "Wix",
+    test: (h, html) =>
+      when(h.has("x-wix-request-id") || h.has("x-wix-dispatcher-cache-hit") || html.includes("static.wixstatic.com"), "The page is served by Wix."),
+  },
   {
     name: "Squarespace",
-    test: (h, html) => /squarespace/i.test(h.get("server") ?? "") || html.includes("static1.squarespace.com"),
+    test: (h, html) =>
+      when(/squarespace/i.test(h.get("server") ?? "") || html.includes("static1.squarespace.com"), "The page is served by Squarespace."),
   },
-  { name: "Ghost", test: (h) => h.has("x-ghost-cache-status") },
-  { name: "Webflow", test: (_h, html) => /\bdata-wf-site=/.test(html) },
-  { name: "HubSpot", test: (h) => h.has("x-hs-cache-config") || h.has("x-hs-hub-id") },
-  { name: "Next.js", test: (h, html) => /next\.js/i.test(h.get("x-powered-by") ?? "") || html.includes("/_next/static/") },
+  { name: "Webflow", test: (_h, html) => when(/\bdata-wf-site=/.test(html), "The page carries Webflow's data-wf-site marker.") },
+  { name: "HubSpot CMS", test: (h) => when(h.has("x-hs-hub-id") || h.has("x-hs-cache-config"), "The response has HubSpot headers.") },
+  { name: "Craft CMS", test: (h) => when(/craft cms/i.test(h.get("x-powered-by") ?? ""), "The server says it runs Craft CMS.") },
+  { name: "Joomla", test: (_h, html) => when(html.includes("/media/jui/") || html.includes("/media/system/js/core"), "The page loads Joomla's core scripts.") },
+  { name: "TYPO3", test: (_h, html) => when(html.includes("typo3temp/") || html.includes("/typo3conf/"), "The page has TYPO3 file paths.") },
+  assetHost("Contentful", "ctfassets.net"),
+  assetHost("Sanity", "cdn.sanity.io"),
+  assetHost("Storyblok", "a.storyblok.com"),
+  assetHost("Prismic", "images.prismic.io"),
+  assetHost("Contentstack", "images.contentstack.io"),
+  assetHost("Builder.io", "cdn.builder.io"),
+  assetHost("Framer", "framerusercontent.com"),
+  assetHost("Weebly", "editmysite.com"),
+  assetHost("Duda", "multiscreensite.com"),
 ];
 
-export function analyze(headers: Headers, html: string) {
+const FRAMEWORK_FINGERPRINTS: Fingerprint[] = [
+  { name: "Next.js", test: (h, html) => when(/next\.js/i.test(h.get("x-powered-by") ?? "") || html.includes("/_next/static/"), "Next.js") },
+  { name: "Nuxt", test: (_h, html) => when(html.includes("/_nuxt/"), "Nuxt") },
+  { name: "Gatsby", test: (_h, html) => when(html.includes('id="___gatsby"'), "Gatsby") },
+  { name: "Astro", test: (_h, html) => when(html.includes("/_astro/"), "Astro") },
+  { name: "SvelteKit", test: (_h, html) => when(html.includes("/_app/immutable/"), "SvelteKit") },
+  { name: "Remix", test: (_h, html) => when(html.includes("__remixContext"), "Remix") },
+];
+
+function firstMatch(list: Fingerprint[], h: Headers, html: string, headerText: string, host: string) {
+  for (const fp of list) {
+    const clue = fp.test(h, html, headerText, host);
+    if (clue) return { name: fp.name, clue };
+  }
+  return undefined;
+}
+
+export function analyze(headers: Headers, html: string, host = "") {
   const evidence: Evidence[] = [];
   const add = (signal: string, detail: string, strength: Strength) =>
     evidence.push({ signal, detail, strength });
@@ -186,12 +260,17 @@ export function analyze(headers: Headers, html: string) {
     add("REST API link tag", "The page links to a WordPress REST API (api.w.org).", "strong");
   }
 
+  if (headers.has("x-hacker") || /^wordpress\.com$/i.test(headers.get("host-header") ?? "")) {
+    add("WordPress.com headers", "The response carries headers that WordPress.com sends.", "strong");
+  }
+
   if (headers.has("x-pingback")) {
     add("Pingback header", "The response advertises a WordPress-style XML-RPC pingback endpoint.", "strong");
   }
 
   let platform: string | undefined;
   let otherCms: string | undefined;
+  let clue: string | undefined;
   const headerGenerator = headers.get("x-generator");
   const generators = [...metaGenerators(html), headerGenerator ? cleanName(headerGenerator) : ""].filter(Boolean);
   for (const generator of generators) {
@@ -201,7 +280,10 @@ export function analyze(headers: Headers, html: string) {
       break;
     }
   }
-  if (!platform) otherCms = generators.find((g) => !/^wordpress/i.test(g));
+  if (!platform) {
+    otherCms = generators.find((g) => !/^wordpress/i.test(g));
+    if (otherCms) clue = `The page says it was generated by “${otherCms}”.`;
+  }
 
   const poweredBy = headers.get("x-powered-by") ?? "";
   if (/wordpress|wp engine|wpvip/i.test(poweredBy)) {
@@ -220,11 +302,18 @@ export function analyze(headers: Headers, html: string) {
     add("Block editor markup", "The page uses wp-block CSS classes from the block editor.", "weak");
   }
 
-  if (!otherCms) {
-    otherCms = OTHER_PLATFORMS.find((p) => p.test(headers, html))?.name;
-  }
+  if (!platform && evidence.some((e) => e.signal === "WordPress.com headers")) platform = "WordPress.com";
 
-  return { evidence, platform, otherCms };
+  const headerText = [...headers].map(([k, v]) => `${k}: ${v}`).join("\n").toLowerCase();
+  if (!otherCms) {
+    const cms = firstMatch(CMS_FINGERPRINTS, headers, html, headerText, host);
+    otherCms = cms?.name;
+    clue = cms?.clue;
+  }
+  const framework = firstMatch(FRAMEWORK_FINGERPRINTS, headers, html, headerText, host)?.name;
+  const theme = html.match(/\/wp-content\/themes\/(?:pub\/|premium\/)?([a-z0-9_-]+)\//i)?.[1];
+
+  return { evidence, platform, otherCms, clue, framework, theme };
 }
 
 export function decide(evidence: Evidence[]): Verdict {
@@ -238,7 +327,7 @@ export function decide(evidence: Evidence[]): Verdict {
 export async function check(raw: string, fetchImpl: FetchLike = fetch): Promise<CheckResult> {
   const start = normalizeUrl(raw);
   const { res, finalUrl, body } = await fetchPage(start, fetchImpl);
-  const { evidence, platform, otherCms } = analyze(res.headers, body);
+  const { evidence, platform, otherCms, clue, framework, theme } = analyze(res.headers, body, finalUrl.hostname);
 
   if (!evidence.some((e) => e.strength === "strong") && (await probeRestApi(finalUrl.origin, fetchImpl))) {
     evidence.push({
@@ -249,6 +338,7 @@ export async function check(raw: string, fetchImpl: FetchLike = fetch): Promise<
   }
 
   let verdict = decide(evidence);
+  if (verdict === "unsure" && otherCms) verdict = "no";
   let reason: string | undefined;
   if (verdict === "no" && !otherCms && !res.ok) {
     verdict = "unsure";
@@ -265,6 +355,9 @@ export async function check(raw: string, fetchImpl: FetchLike = fetch): Promise<
     verdict,
     platform,
     otherCms: verdict === "yes" ? undefined : otherCms,
+    clue: verdict === "yes" ? undefined : clue,
+    framework: verdict === "yes" ? undefined : framework,
+    theme: verdict === "yes" ? theme : undefined,
     reason,
     evidence,
   };
