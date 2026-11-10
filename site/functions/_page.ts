@@ -51,6 +51,7 @@ button[disabled] { opacity: 0.6; cursor: progress; }
 .answer.yes { color: var(--yes); } .answer.no { color: var(--no); } .answer.unsure { color: var(--unsure); }
 .summary { margin: 0; font-size: 1.1rem; overflow-wrap: anywhere; }
 .error { color: var(--no); margin: 0; }
+.note { margin: 8px 0 0; color: var(--muted); overflow-wrap: anywhere; }
 details { margin-top: 18px; }
 summary { cursor: pointer; color: var(--muted); }
 ul.evidence { margin: 12px 0 0; padding-left: 20px; }
@@ -99,9 +100,15 @@ function render(data) {
   card.append(el("p", { class: "answer " + data.verdict }, words[data.verdict]));
   let line;
   if (data.verdict === "yes") line = data.host + " runs WordPress" + (data.platform && data.platform !== "WordPress" ? " (" + data.platform + ")." : ".");
-  else if (data.verdict === "no") line = data.otherCms ? data.host + " runs " + data.otherCms + "." : "No sign of WordPress on " + data.host + ".";
+  else if (data.verdict === "no") line = data.otherCms ? data.host + " runs " + data.otherCms + "." : "No CMS detected.";
   else line = data.reason || "One weak sign of WordPress on " + data.host + ", not enough to say yes.";
   card.append(el("p", { class: "summary" }, line));
+
+  const notes = [];
+  if (data.theme) notes.push("Theme: " + data.theme);
+  if (data.clue) notes.push("How we know: " + data.clue);
+  if (data.framework) notes.push("Built with " + data.framework + ".");
+  for (const note of notes) card.append(el("p", { class: "note" }, note));
 
   if (data.evidence && data.evidence.length) {
     const details = el("details");

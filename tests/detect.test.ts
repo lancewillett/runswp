@@ -26,6 +26,29 @@ test("analyze finds WordPress signals and names other platforms", () => {
 
   const oneWeak = analyze(new Headers(), '<img src="https://cdn.example/wp-content/x.png">');
   assert.equal(decide(oneWeak.evidence), "unsure");
+
+  const wpcom = analyze(new Headers({ "x-hacker": "Want root?" }), '<link href="/wp-content/themes/twentytwentyfive/style.css">');
+  assert.equal(wpcom.platform, "WordPress.com");
+  assert.equal(wpcom.theme, "twentytwentyfive");
+  assert.equal(decide(wpcom.evidence), "yes");
+});
+
+test("analyze names non-WordPress platforms and frameworks", () => {
+  const aem = analyze(new Headers({ "x-debug-forwarded-host": "publish-p1-e2.adobeaemcloud.com" }), "<p>hi</p>");
+  assert.equal(aem.otherCms, "Adobe Experience Manager");
+  assert.equal(decide(aem.evidence), "no");
+
+  assert.equal(analyze(new Headers(), "<p>hi</p>", "someone.blogspot.com").otherCms, "Blogger");
+  assert.equal(analyze(new Headers(), "<p>hi</p>", "staff.tumblr.com").otherCms, "Tumblr");
+  assert.equal(analyze(new Headers({ "set-cookie": "exp_tracker=abc; path=/" }), "").otherCms, "ExpressionEngine");
+
+  const next = analyze(new Headers(), '<script src="/_next/static/chunks/main.js"></script>');
+  assert.equal(next.otherCms, undefined);
+  assert.equal(next.framework, "Next.js");
+
+  const contentfulNext = analyze(new Headers(), '<img src="https://images.ctfassets.net/x.png"><script src="/_next/static/a.js"></script>');
+  assert.equal(contentfulNext.otherCms, "Contentful");
+  assert.equal(contentfulNext.framework, "Next.js");
 });
 
 test("page route serves HTML", async () => {
@@ -47,6 +70,14 @@ live("royal.uk is not WordPress (Drupal)", async () => {
   console.log(JSON.stringify(data));
   assert.equal(data.verdict, "no");
   assert.match(data.otherCms, /Drupal/);
+});
+
+live("snowflake.com runs Adobe Experience Manager", async () => {
+  const res = await checkRoute(new Request("https://x.test/api/check?url=snowflake.com"));
+  const data = await res.json();
+  console.log(JSON.stringify({ ...data, evidence: data.evidence.length }));
+  assert.equal(data.verdict, "no");
+  assert.equal(data.otherCms, "Adobe Experience Manager");
 });
 
 live("lance.blog is WordPress", async () => {
