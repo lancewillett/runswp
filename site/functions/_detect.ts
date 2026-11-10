@@ -252,7 +252,6 @@ const HOSTING_FINGERPRINTS: Fingerprint[] = [
   { name: "GitHub Pages", test: (h) => when(/^github\.com$/i.test(h.get("server") ?? ""), "GitHub Pages") },
   { name: "Fly.io", test: (h) => when(h.has("fly-request-id"), "Fly.io") },
   { name: "Render", test: (h) => when(h.has("rndr-id"), "Render") },
-  { name: "Cloudflare", test: (h) => when(/^cloudflare$/i.test(h.get("server") ?? ""), "Cloudflare") },
   { name: "Amazon CloudFront", test: (h) => when(h.has("x-amz-cf-id"), "Amazon CloudFront") },
   { name: "Fastly", test: (h) => when(h.has("x-fastly-request-id"), "Fastly") },
 ];
@@ -264,6 +263,44 @@ const UI_LIBRARIES: Array<{ name: string; pattern: RegExp }> = [
   { name: "Solid", pattern: /solid-js|solidjs\.com/ },
   { name: "Angular", pattern: /@angular\/core|angular\.dev|angular\.io/ },
 ];
+
+// Source: https://www.cloudflare.com/ips-v4 (fetched 2026-11-10).
+const CLOUDFLARE_IPV4 = [
+  "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "141.101.64.0/18",
+  "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22", "198.41.128.0/17",
+  "162.158.0.0/15", "104.16.0.0/13", "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+];
+
+function ipv4ToInt(ip: string): number | undefined {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) return undefined;
+  return ((parts[0] << 24) >>> 0) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
+}
+
+export function isCloudflareIp(ip: string): boolean {
+  const value = ipv4ToInt(ip);
+  if (value === undefined) return false;
+  return CLOUDFLARE_IPV4.some((cidr) => {
+    const [base, bits] = cidr.split("/");
+    const mask = bits === "0" ? 0 : (~0 << (32 - Number(bits))) >>> 0;
+    return ((value & mask) >>> 0) === ((ipv4ToInt(base)! & mask) >>> 0);
+  });
+}
+
+async function behindCloudflare(hostname: string, fetchImpl: FetchLike): Promise<boolean> {
+  try {
+    const res = await fetchImpl(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=A`, {
+      headers: { accept: "application/dns-json" },
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    });
+    if (!res.ok) return false;
+    const data = JSON.parse(await readCapped(res, PROBE_BYTES));
+    const ips: string[] = (data?.Answer ?? []).filter((a: { type: number }) => a.type === 1).map((a: { data: string }) => a.data);
+    return ips.some(isCloudflareIp);
+  } catch {
+    return false;
+  }
+}
 
 function viteEntry(html: string): string | undefined {
   for (const tag of html.match(/<script\b[^>]*>/gi) ?? []) {
@@ -391,7 +428,8 @@ export function decide(evidence: Evidence[]): Verdict {
 export async function check(raw: string, fetchImpl: FetchLike = fetch): Promise<CheckResult> {
   const start = normalizeUrl(raw);
   const { res, finalUrl, body } = await fetchPage(start, fetchImpl);
-  const { evidence, platform, otherCms, clue, framework, hosting, theme } = analyze(res.headers, body, finalUrl.hostname);
+  const { evidence, platform, otherCms, clue, framework, hosting: headerHosting, theme } = analyze(res.headers, body, finalUrl.hostname);
+  const hosting = headerHosting ?? ((await behindCloudflare(finalUrl.hostname, fetchImpl)) ? "Cloudflare" : undefined);
 
   if (!evidence.some((e) => e.strength === "strong") && (await probeRestApi(finalUrl.origin, fetchImpl))) {
     evidence.push({
