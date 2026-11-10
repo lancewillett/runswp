@@ -54,7 +54,9 @@ test("analyze names non-WordPress platforms and frameworks", () => {
 test("page route serves HTML", async () => {
   const res = pageRoute();
   assert.match(res.headers.get("content-type") ?? "", /text\/html/);
-  assert.match(await res.text(), /Is the site WordPress\?/);
+  const html = await res.text();
+  assert.match(html, /<h1>Runs WP\?<\/h1>/);
+  assert.match(html, /rel="canonical" href="https:\/\/runswp\.com\/"/);
 });
 
 test("check route rejects bad input with 400", async () => {

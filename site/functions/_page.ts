@@ -3,10 +3,13 @@ export const PAGE = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Is the site WordPress?</title>
-<meta name="description" content="Type a web address and find out whether the site runs WordPress, with the evidence behind the answer.">
-<meta property="og:title" content="Is the site WordPress?">
-<meta property="og:description" content="Type a web address and find out whether the site runs WordPress.">
+<title>Does this site run WordPress? · RunsWP</title>
+<meta name="description" content="Type a web address and find out whether the site runs WordPress, or which CMS it uses instead, with the evidence behind the answer.">
+<link rel="canonical" href="https://runswp.com/">
+<meta property="og:site_name" content="RunsWP">
+<meta property="og:url" content="https://runswp.com/">
+<meta property="og:title" content="Does this site run WordPress?">
+<meta property="og:description" content="Type a web address and find out whether the site runs WordPress, or which CMS it uses instead.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%233858e9'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='18' font-weight='700' text-anchor='middle' fill='white'%3E%3F%3C/text%3E%3C/svg%3E">
 <style>
@@ -65,8 +68,8 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 2
 <body>
 <a class="skip" href="#url">Skip to the address field</a>
 <main id="main">
-  <h1>Is the site WordPress?</h1>
-  <p class="lede">Type a web address. You'll get a yes or no, plus the evidence behind it.</p>
+  <h1>Runs WP?</h1>
+  <p class="lede">Type a web address to find out whether the site runs WordPress. If it doesn't, you'll see which CMS it uses instead.</p>
   <label class="field-label" for="url">Site address</label>
   <form id="check" novalidate>
     <input id="url" name="url" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="example.com" required>
