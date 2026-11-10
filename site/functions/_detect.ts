@@ -252,7 +252,7 @@ const HOSTING_FINGERPRINTS: Fingerprint[] = [
   { name: "GitHub Pages", test: (h) => when(/^github\.com$/i.test(h.get("server") ?? ""), "GitHub Pages") },
   { name: "Fly.io", test: (h) => when(h.has("fly-request-id"), "Fly.io") },
   { name: "Render", test: (h) => when(h.has("rndr-id"), "Render") },
-  { name: "Cloudflare", test: (h) => when(h.has("cf-ray") || /^cloudflare$/i.test(h.get("server") ?? ""), "Cloudflare") },
+  { name: "Cloudflare", test: (h) => when(/^cloudflare$/i.test(h.get("server") ?? ""), "Cloudflare") },
   { name: "Amazon CloudFront", test: (h) => when(h.has("x-amz-cf-id"), "Amazon CloudFront") },
   { name: "Fastly", test: (h) => when(h.has("x-fastly-request-id"), "Fastly") },
 ];

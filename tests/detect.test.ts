@@ -60,6 +60,7 @@ test("analyze spots a Vite app shell and the host; uiLibraryIn names the library
   assert.equal(shell.framework, "Vite");
   assert.equal(shell.hosting, "Cloudflare");
   assert.equal(analyze(new Headers({ "x-vercel-id": "sfo1::x" }), "").hosting, "Vercel");
+  assert.equal(analyze(new Headers({ server: "nginx", "cf-ray": "abc-LAX" }), "").hosting, undefined);
   assert.equal(uiLibraryIn('import{createRoot}from"react-dom/client"'), "React");
   assert.equal(uiLibraryIn("window.__VUE__=1"), "Vue");
   assert.equal(uiLibraryIn('from"preact/hooks"'), "Preact");
