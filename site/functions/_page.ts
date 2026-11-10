@@ -62,6 +62,10 @@ ul.evidence li { margin-bottom: 6px; }
 .tag { font-size: 0.8rem; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; margin-left: 6px; white-space: nowrap; }
 .loading { color: var(--muted); }
 footer { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 24px 16px; }
+footer p { margin: 0 0 6px; }
+footer a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+footer a:hover { color: var(--text); }
+footer a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 @media (max-width: 420px) { form { flex-direction: column; } button { width: 100%; } }
 </style>
 </head>
@@ -77,7 +81,10 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 2
   </form>
   <div id="result" aria-live="polite"></div>
 </main>
-<footer>Checks the home page and the WordPress REST API. Some sites block automated checks.</footer>
+<footer>
+  <p>Checks the home page and the WordPress REST API. Some sites block automated checks.</p>
+  <p>Built by Lance Willett with <a href="https://spacefast.com/">Spacefast</a>.</p>
+</footer>
 <script>
 const form = document.getElementById("check");
 const input = document.getElementById("url");
