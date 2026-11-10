@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { analyze, decide, InputError, normalizeUrl, uiLibraryIn } from "../site/functions/_detect.ts";
+import { analyze, decide, InputError, isCloudflareIp, normalizeUrl, uiLibraryIn } from "../site/functions/_detect.ts";
 import { GET as checkRoute } from "../site/functions/api/check.ts";
 import { GET as pageRoute } from "../site/functions/index.ts";
 
@@ -58,9 +58,16 @@ test("analyze spots a Vite app shell and the host; uiLibraryIn names the library
   );
   assert.equal(shell.otherCms, undefined);
   assert.equal(shell.framework, "Vite");
-  assert.equal(shell.hosting, "Cloudflare");
+  assert.equal(shell.hosting, undefined);
   assert.equal(analyze(new Headers({ "x-vercel-id": "sfo1::x" }), "").hosting, "Vercel");
-  assert.equal(analyze(new Headers({ server: "nginx", "cf-ray": "abc-LAX" }), "").hosting, undefined);
+  assert.equal(analyze(new Headers({ server: "cloudflare", "cf-ray": "abc-LAX" }), "").hosting, undefined);
+});
+
+test("isCloudflareIp checks Cloudflare's published IPv4 ranges", () => {
+  assert.equal(isCloudflareIp("172.67.191.32"), true);
+  assert.equal(isCloudflareIp("104.21.60.34"), true);
+  assert.equal(isCloudflareIp("192.0.78.24"), false);
+  assert.equal(isCloudflareIp("not-an-ip"), false);
   assert.equal(uiLibraryIn('import{createRoot}from"react-dom/client"'), "React");
   assert.equal(uiLibraryIn("window.__VUE__=1"), "Vue");
   assert.equal(uiLibraryIn('from"preact/hooks"'), "Preact");
@@ -114,6 +121,12 @@ live("brocklefferts.com is a hand-built React app on Cloudflare", async () => {
   assert.equal(data.uiLibrary, "React");
   assert.equal(data.framework, "Vite");
   assert.equal(data.hosting, "Cloudflare");
+});
+
+live("lance.blog is not labeled as served by Cloudflare", async () => {
+  const res = await checkRoute(new Request("https://x.test/api/check?url=lance.blog"));
+  const data = await res.json();
+  assert.equal(data.hosting, undefined);
 });
 
 live("lance.blog is WordPress", async () => {
