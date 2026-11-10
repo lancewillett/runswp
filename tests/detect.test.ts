@@ -80,6 +80,13 @@ live("snowflake.com runs Adobe Experience Manager", async () => {
   assert.equal(data.otherCms, "Adobe Experience Manager");
 });
 
+live("staff.tumblr.com is Tumblr, not unsure", async () => {
+  const res = await checkRoute(new Request("https://x.test/api/check?url=staff.tumblr.com"));
+  const data = await res.json();
+  assert.equal(data.verdict, "no");
+  assert.equal(data.otherCms, "Tumblr");
+});
+
 live("lance.blog is WordPress", async () => {
   const res = await checkRoute(new Request("https://x.test/api/check?url=lance.blog"));
   const data = await res.json();

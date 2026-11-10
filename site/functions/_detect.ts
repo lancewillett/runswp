@@ -338,6 +338,7 @@ export async function check(raw: string, fetchImpl: FetchLike = fetch): Promise<
   }
 
   let verdict = decide(evidence);
+  if (verdict === "unsure" && otherCms) verdict = "no";
   let reason: string | undefined;
   if (verdict === "no" && !otherCms && !res.ok) {
     verdict = "unsure";
