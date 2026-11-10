@@ -31,7 +31,9 @@ main { width: 100%; max-width: 640px; margin: 0 auto; padding: 12vh 16px 48px; f
 h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(2rem, 7vw, 3rem); line-height: 1.1; margin: 0 0 8px; letter-spacing: -0.01em; }
 .lede { color: var(--muted); margin: 0 0 28px; }
 form { display: flex; gap: 8px; }
-label.visually-hidden, .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.field-label { display: block; font-weight: 600; margin-bottom: 8px; }
+.skip { position: absolute; left: -9999px; top: 8px; background: var(--surface); color: var(--text); padding: 8px 12px; border-radius: 8px; }
+.skip:focus { left: 16px; }
 input[type=text] {
   flex: 1; min-width: 0; font: inherit; padding: 14px 16px; border-radius: var(--radius);
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
@@ -60,11 +62,12 @@ footer { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 2
 </style>
 </head>
 <body>
-<main>
+<a class="skip" href="#url">Skip to the address field</a>
+<main id="main">
   <h1>Is the site WordPress?</h1>
   <p class="lede">Type a web address. You'll get a yes or no, plus the evidence behind it.</p>
+  <label class="field-label" for="url">Site address</label>
   <form id="check" novalidate>
-    <label class="visually-hidden" for="url">Site address</label>
     <input id="url" name="url" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="example.com" required>
     <button type="submit">Check</button>
   </form>
